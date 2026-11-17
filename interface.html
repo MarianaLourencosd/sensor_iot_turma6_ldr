@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoramento de Luz - Arduino</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', sans-serif;
+            text-align: center;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #f8fafc;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .card {
+            background: rgba(30, 41, 59, 0.85);
+            backdrop-filter: blur(12px);
+            padding: 40px 30px;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            max-width: 640px;
+            width: 100%;
+        }
+        h1 { font-size: 1.6rem; margin-bottom: 6px; }
+        .subtitulo { color: #94a3b8; font-size: 0.85rem; margin-bottom: 25px; }
+        .valor-container {
+            margin: 20px 0;
+            display: flex;
+            align-items: baseline;
+            justify-content: center;
+            gap: 6px;
+        }
+        .valor {
+            font-size: 5rem;
+            font-weight: 800;
+            color: #38bdf8;
+            line-height: 1;
+            transition: color 0.3s ease;
+        }
+        .unidade { font-size: 1.2rem; color: #94a3b8; font-weight: 600; }
+        .barra-track {
+            position: relative;
+            height: 12px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 999px;
+            overflow: hidden;
+            margin: 20px 0 6px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .barra-fill {
+            height: 100%;
+            width: 0%;
+            background: #10b981;
+            border-radius: 999px;
+            transition: width 0.3s ease, background-color 0.3s ease;
+        }
+        .marca-limite {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #f8fafc;
+            opacity: 0.7;
+        }
+        .legenda-barra {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: #94a3b8;
+            margin-bottom: 10px;
+        }
+        .alerta-status {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 6px 16px;
+            border-radius: 999px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            background: rgba(148, 163, 184, 0.15);
+            color: #cbd5e1;
+        }
+        .leds {
+            display: flex;
+            justify-content: center;
+            gap: 14px;
+            margin-top: 20px;
+        }
+        .led {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #3f1d1d;
+            border: 2px solid rgba(255,255,255,0.1);
+            transition: background 0.2s ease, box-shadow 0.2s ease;
+        }
+        .led.aceso {
+            background: #ef4444;
+            box-shadow: 0 0 14px #ef4444;
+        }
+        .firebase {
+            margin-top: 25px;
+            font-size: 0.85rem;
+            color: #94a3b8;
+        }
+        .firebase strong { color: #fff; }
+        .info-footer {
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            margin-top: 20px;
+            padding-top: 15px;
+            font-size: 0.8rem;
+            color: #94a3b8;
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .terminal-titulo {
+            margin-top: 25px;
+            text-align: left;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #94a3b8;
+        }
+        .terminal {
+            margin-top: 8px;
+            height: 220px;
+            overflow-y: auto;
+            background: #020617;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 10px 12px;
+            text-align: left;
+            font-family: Consolas, 'Courier New', monospace;
+            font-size: 0.78rem;
+            line-height: 1.5;
+            color: #cbd5e1;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .terminal .risco { color: #f87171; }
+        .terminal .normal { color: #34d399; }
+        .terminal .erro { color: #fbbf24; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Nível de Luz</h1>
+        <div class="subtitulo">Sensor LDR • Área B</div>
+
+        <div class="valor-container">
+            <span class="valor" id="luz-display">--</span>
+            <span class="unidade">/ 1023</span>
+        </div>
+
+        <div class="barra-track">
+            <div class="barra-fill" id="barra-fill"></div>
+            <div class="marca-limite" id="marca-limite"></div>
+        </div>
+        <div class="legenda-barra">
+            <span>0</span>
+            <span>Limite: <strong id="limite-texto">--</strong></span>
+            <span>1023</span>
+        </div>
+
+        <span class="alerta-status" id="alerta-status">Aguardando leitura...</span>
+
+        <div class="leds">
+            <div class="led" id="led1"></div>
+            <div class="led" id="led2"></div>
+            <div class="led" id="led3"></div>
+        </div>
+
+        <div class="firebase">
+            Último registro no Firebase: <strong id="ultimo-valor">--</strong> às <strong id="ultima-hora">--:--:--</strong>
+        </div>
+
+        <div class="terminal-titulo">📟 Serial + Python (ao vivo)</div>
+        <div class="terminal" id="terminal">Aguardando mensagens...</div>
+
+        <div class="info-footer">
+            <span>Status: <strong id="status-texto" style="color: #fff">Conectando...</strong></span>
+            <span>Hora: <strong id="timestamp-texto" style="color: #fff">--:--:--</strong></span>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = window.location.protocol === 'file:'
+            ? 'http://127.0.0.1:5000/api/dados'
+            : '/api/dados';
+
+        function buscarLuz() {
+            fetch(API_URL, { cache: 'no-store' })
+                .then(r => r.json())
+                .then(data => {
+                    const luz = Number(data.luz);
+                    const limite = Number(data.limite);
+                    const risco = data.risco === true;
+
+                    const display = document.getElementById('luz-display');
+                    const fill = document.getElementById('barra-fill');
+                    const badge = document.getElementById('alerta-status');
+
+                    const cor = risco ? '#ef4444' : '#10b981';
+                    const bg = risco ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)';
+
+                    if (!isNaN(luz) && data.timestamp !== '--:--:--') {
+                        display.innerText = luz;
+                        display.style.color = cor;
+                        badge.innerText = risco ? '🔴 VERMELHO - RISCO' : '✅ NORMAL';
+                        badge.style.color = cor;
+                        badge.style.backgroundColor = bg;
+
+                        fill.style.width = Math.max(2, (luz / 1023) * 100) + '%';
+                        fill.style.backgroundColor = cor;
+                    }
+
+                    if (!isNaN(limite)) {
+                        document.getElementById('limite-texto').innerText = limite;
+                        document.getElementById('marca-limite').style.left = (limite / 1023) * 100 + '%';
+                    }
+
+                    ['led1', 'led2', 'led3'].forEach(id =>
+                        document.getElementById(id).classList.toggle('aceso', risco)
+                    );
+
+                    document.getElementById('ultimo-valor').innerText = data.ultimo_valor_gravado ?? '--';
+                    document.getElementById('ultima-hora').innerText = data.ultima_gravacao_hora || '--:--:--';
+                    document.getElementById('status-texto').innerText = data.status || 'Ativo';
+
+                    mostrarTerminal(data.log || []);
+                    document.getElementById('timestamp-texto').innerText = data.timestamp || '--:--:--';
+                })
+                .catch(err => {
+                    console.error('Erro na busca:', err);
+                    document.getElementById('status-texto').innerText = 'Erro de Conexão';
+                });
+        }
+
+        function mostrarTerminal(linhas) {
+            const term = document.getElementById('terminal');
+            if (linhas.length === 0) return;
+
+            const noFim = term.scrollTop + term.clientHeight >= term.scrollHeight - 20;
+
+            term.innerHTML = '';
+            linhas.forEach(linha => {
+                const div = document.createElement('div');
+                const t = linha.toUpperCase();
+                if (t.includes('RISCO')) div.className = 'risco';
+                else if (t.includes('NORMAL')) div.className = 'normal';
+                else if (t.includes('ERRO') || t.includes('OCUPADA')) div.className = 'erro';
+                div.textContent = linha;
+                term.appendChild(div);
+            });
+
+            if (noFim) term.scrollTop = term.scrollHeight;
+        }
+
+        window.onload = function () {
+            buscarLuz();
+            setInterval(buscarLuz, 1000);
+        };
+    </script>
+</body>
+</html>
